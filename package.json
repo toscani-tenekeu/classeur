@@ -1,0 +1,19 @@
+{
+  "name": "classeur",
+  "version": "0.1.0",
+  "description": "A web file manager for Linux servers.",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev:server": "bun --watch server/index.ts",
+    "dev:web": "cd web && bun run dev",
+    "build": "cd web && bun install && bun run build",
+    "start": "bun server/index.ts",
+    "passwd": "bun server/cli.ts passwd",
+    "typecheck": "bunx tsc --noEmit -p server"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}
