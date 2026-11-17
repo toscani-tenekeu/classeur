@@ -31,6 +31,7 @@ outside services.
 
 - A 64-bit Linux server (x86-64 or ARM64) with Linux 5.1 or newer
 - Root access
+- About 1 GB of free memory while installing or updating, to build the interface
 - One of: Debian, Ubuntu, Linux Mint, RHEL, Rocky Linux, AlmaLinux, CentOS Stream, Fedora, Oracle Linux, Amazon Linux 2023, openSUSE, Arch Linux, Manjaro or Alpine Linux
 
 ## Install
@@ -48,6 +49,10 @@ finishes it prints:
 Setup link:      http://203.0.113.10:7080/setup?token=…
 Admin password:  …
 ```
+
+On RHEL, Rocky, AlmaLinux and Oracle Linux, 7-Zip comes from EPEL. Without it,
+everything works except opening `.7z` and `.rar` archives; add it later with
+`dnf install epel-release && dnf install p7zip p7zip-plugins`.
 
 Open the setup link once to choose your own password. If you would rather keep
 the generated password, sign in with it; the link stops working either way.
