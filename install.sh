@@ -12,9 +12,10 @@
 #   CLASSEUR_HOST  address to listen on        (default 0.0.0.0)
 #   CLASSEUR_PORT  port to listen on           (default 7080)
 #   CLASSEUR_URL   public address, if you put Classeur behind a domain name
+#   CLASSEUR_REPO  where to download Classeur from (a git URL or a local copy)
 set -euo pipefail
 
-REPO="https://github.com/toscani-tenekeu/classeur.git"
+REPO="${CLASSEUR_REPO:-https://github.com/toscani-tenekeu/classeur.git}"
 DIR="${CLASSEUR_DIR:-/opt/classeur}"
 HOST="${CLASSEUR_HOST:-0.0.0.0}"
 PORT="${CLASSEUR_PORT:-7080}"
