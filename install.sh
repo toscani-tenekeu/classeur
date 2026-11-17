@@ -45,7 +45,9 @@ install_packages() {
   elif command -v dnf >/dev/null || command -v yum >/dev/null; then
     local pm
     pm="$(command -v dnf || command -v yum)"
-    "$pm" install -y -q git curl ca-certificates tar gzip xz bzip2 zip unzip which
+    # Many images ship curl-minimal, which conflicts with the full curl package; either works.
+    command -v curl >/dev/null || "$pm" install -y -q curl
+    "$pm" install -y -q git ca-certificates tar gzip xz bzip2 zip unzip which
     "$pm" install -y -q 7zip >/dev/null 2>&1 || "$pm" install -y -q p7zip p7zip-plugins >/dev/null 2>&1 || true
     "$pm" install -y -q zstd >/dev/null 2>&1 || true
   elif command -v zypper >/dev/null; then
@@ -54,7 +56,8 @@ install_packages() {
     zypper --non-interactive --quiet install 7zip >/dev/null 2>&1 || zypper --non-interactive --quiet install p7zip-full >/dev/null 2>&1 || true
     zypper --non-interactive --quiet install zstd >/dev/null 2>&1 || true
   elif command -v pacman >/dev/null; then
-    pacman -Sy --noconfirm --needed git curl ca-certificates tar gzip xz bzip2 zip unzip which
+    # Arch does not support partial upgrades, so the package database is synced with a full upgrade.
+    pacman -Syu --noconfirm --needed git curl ca-certificates tar gzip xz bzip2 zip unzip which
     pacman -S --noconfirm --needed 7zip >/dev/null 2>&1 || pacman -S --noconfirm --needed p7zip >/dev/null 2>&1 || true
     pacman -S --noconfirm --needed zstd >/dev/null 2>&1 || true
   elif command -v apk >/dev/null; then
