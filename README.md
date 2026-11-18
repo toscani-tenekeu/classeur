@@ -1,24 +1,46 @@
+<div align="center">
+
+<img src="docs/logo.svg" alt="Classeur logo" width="88" height="88">
+
 # Classeur
 
-A web file manager for Linux servers.
+**Your server's files, in the browser.**
 
-Classeur runs on the server whose files it manages. You browse, upload, edit,
-compress and organise files from your browser, without FTP, SSH tunnels or
-outside services.
+A web file manager for Linux servers.<br>
+Browse, upload, edit, compress and organise files without FTP, SSH tunnels or outside services.
 
-## What it does
+[![Version](https://img.shields.io/github/package-json/v/toscani-tenekeu/classeur?style=flat-square&color=171717)](package.json)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
+[![Linux](https://img.shields.io/badge/linux-14%20distributions-FCC624?style=flat-square&logo=linux&logoColor=black)](#requirements)
+[![Bun](https://img.shields.io/badge/built%20with-bun-000000?style=flat-square&logo=bun&logoColor=white)](https://bun.sh)
+[![Vue](https://img.shields.io/badge/vue-3-4FC08D?style=flat-square&logo=vuedotjs&logoColor=white)](web)
 
-- **Browse**: list or grid view, sorting by any column, hidden files on request, favourite folders, a clickable or typed path, and search by name, extension, size or date.
-- **Organise**: new files and folders, rename, copy, move, links, drag and drop between folders, and actions on many items at once. Long copies and moves run in the background with progress and can be cancelled.
-- **Trash**: deleted items wait 30 days before they are removed, and can be restored. Permanent deletion is available when you choose it.
-- **Upload and download**: files or whole folders by drag and drop, sent in parts so large files survive a shaky connection. Download a file, or several files and folders as one zip. Download a web address straight to the server.
-- **Archives**: make zip, tar.gz and tar.xz archives; look inside and extract zip, tar, tar.gz, tar.xz, tar.bz2, tar.zst, gz, xz, bz2, 7z and rar.
-- **Edit and preview**: a code editor with syntax highlighting for configuration files, scripts and source code; previews for images, video, audio, PDF and the end of large log files.
-- **Permissions**: change permissions with checkboxes or a number like 755, separately for files and folders, and change the owner and group, optionally for everything inside a folder.
-- **Activity**: a record of everything done from Classeur.
-- **Updates**: Classeur checks for new versions and installs them from the interface, on request or automatically.
+[Install](#install) · [Features](#features) · [Using a domain](#using-a-domain-name) · [Report a bug](https://github.com/toscani-tenekeu/classeur/issues/new)
 
-### Safety
+<img src="docs/files-dark.png" alt="Classeur file list in dark mode" width="900">
+
+</div>
+
+---
+
+## Features
+
+| | |
+| --- | --- |
+| **Browse** | List or grid view, sorting by any column, hidden files on request, favourite folders, a clickable or typed path, and search by name, extension, size or date. |
+| **Organise** | New files and folders, rename, copy, move, links, drag and drop between folders, and actions on many items at once. Long copies and moves run in the background with progress and can be cancelled. |
+| **Trash** | Deleted items wait 30 days and can be restored. Permanent deletion is there when you choose it. |
+| **Upload and download** | Files or whole folders by drag and drop, sent in parts so large files survive a shaky connection. Download a file, or several as one zip. Download a web address straight to the server. |
+| **Archives** | Make zip, tar.gz and tar.xz; look inside and extract zip, tar, tar.gz, tar.xz, tar.bz2, tar.zst, gz, xz, bz2, 7z and rar. |
+| **Edit and preview** | A code editor with syntax highlighting for configuration files, scripts and source code; previews for images, video, audio, PDF and the end of large log files. |
+| **Permissions** | Change permissions with checkboxes or a number like 755, separately for files and folders, and change owner and group, optionally for everything inside. |
+| **Activity and updates** | A record of everything done from Classeur, and updates installed from the interface, on request or automatically. |
+
+<div align="center">
+<img src="docs/editor.png" alt="Editing a file in Classeur" width="900">
+</div>
+
+## Safety
 
 - Every action that changes or removes something asks for confirmation and says what will happen.
 - The operating system's own folders (`/boot`, `/usr`, `/bin`, `/lib` and the like) and the kernel's live views (`/proc`, `/sys`, `/dev`, `/run`) can be browsed and downloaded but not changed.
