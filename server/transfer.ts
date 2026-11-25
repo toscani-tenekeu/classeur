@@ -8,7 +8,7 @@ import { db, logActivity } from './db.ts'
 import { explain, FsError, mustRemove, mustWrite, path } from './fsops.ts'
 import { type Handle, startJob } from './jobs.ts'
 import { containsMount, mountPoints } from './paths.ts'
-import { lines, run } from './sys.ts'
+import { lines, reason, run } from './sys.ts'
 
 export type Conflict = 'rename' | 'overwrite' | 'skip'
 
@@ -48,6 +48,7 @@ async function countBytes(target: string, handle: Handle): Promise<number> {
 }
 
 async function copyFile(source: string, target: string, handle: Handle) {
+  handle.job.now = source
   const input = await open(source, 'r')
   const output = await open(target, 'wx')
   const buffer = Buffer.allocUnsafe(4 * 1024 * 1024)
@@ -256,7 +257,13 @@ export async function startTransfer(input: TransferInput) {
     { kind: input.op, title, unit: 'bytes', folders: [destination, ...new Set(sources.map((source) => dirname(source)))] },
     async (handle) => {
       // Work out the size first, so the progress bar means something.
-      for (const source of sources) handle.job.total += await countBytes(source, handle).catch(() => 0)
+      handle.job.now = 'Measuring what to copy'
+      for (const source of sources) {
+        handle.job.total += await countBytes(source, handle).catch((error: unknown) => {
+          if (handle.cancelled) throw error
+          return 0
+        })
+      }
 
       let done = 0
       for (const source of sources) {
@@ -296,8 +303,12 @@ export async function startTransfer(input: TransferInput) {
           done += 1
         } catch (error) {
           if (handle.cancelled) {
-            // Leave no half-copied file behind.
-            if (input.op === 'copy') await rm(target, { recursive: true, force: true }).catch(() => undefined)
+            // Leave no half-copied file behind. The job already shows as cancelled while this runs.
+            if (input.op === 'copy' || (await exists(source))) {
+              handle.job.message = 'Cancelled. Removing the part already copied…'
+              await rm(target, { recursive: true, force: true }).catch(() => undefined)
+              handle.job.message = 'Cancelled. The part already copied was removed.'
+            }
             throw error
           }
           handle.job.errors.push(`${source}: ${explain(error)}`)
@@ -328,13 +339,29 @@ export async function startDelete(inputs: unknown[]) {
     { kind: 'delete', title, unit: 'items', total: targets.length, folders: [...new Set(targets.map((target) => dirname(target)))] },
     async (handle) => {
       let freed = 0
+      const removed: string[] = []
+      // Both steps are programs, so cancelling stops them at once, even in the middle of a large folder.
+      handle.onCancel(() => {
+        logActivity({
+          area: 'files',
+          action: 'Deleting cancelled',
+          target: targets.length === 1 ? targets[0] : dirname(targets[0]!),
+          detail: removed.length ? `Already deleted:\n${removed.join('\n')}` : 'Nothing was fully deleted; part of the current item may be gone.',
+          ok: false,
+          freed,
+        })
+      })
       for (const target of targets) {
         handle.check()
+        handle.job.now = target
         try {
           const size = await sizeOf(target)
-          await rm(target, { recursive: true, force: true })
+          const result = await run(['rm', '-rf', '--one-file-system', '--', target], { timeout: 0 })
+          if (!result.ok) throw new FsError(reason(result, 'It could not be deleted.'))
+          removed.push(target)
           freed += size
         } catch (error) {
+          if (handle.cancelled) throw error
           handle.job.errors.push(`${target}: ${explain(error)}`)
         }
         handle.job.done += 1

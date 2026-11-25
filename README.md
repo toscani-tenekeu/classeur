@@ -27,12 +27,13 @@ Browse, upload, edit, compress and organise files without FTP, SSH tunnels or ou
 
 | | |
 | --- | --- |
-| **Browse** | List or grid view, sorting by any column, hidden files on request, favourite folders, a clickable or typed path, and search by name, extension, size or date. |
-| **Organise** | New files and folders, rename, copy, move, links, drag and drop between folders, and actions on many items at once. Long copies and moves run in the background with progress and can be cancelled. |
+| **Browse** | List or grid view, sorting by any column, hidden files on request, favourite folders, a clickable or typed path, and search by name, extension, size or date, with your own size in MB or number of days. A search can be stopped at any time. |
+| **Organise** | New files and folders, rename, copy, move, links, drag and drop between folders, and actions on many items at once. Long copies, moves, deletions, archives and downloads run as tasks: the **Tasks** menu shows progress, speed, time left and the file being worked on, and cancelling stops the work at once and removes anything half-made. |
 | **Trash** | Deleted items wait 30 days and can be restored. Permanent deletion is there when you choose it. |
 | **Upload and download** | Files or whole folders by drag and drop, sent in parts so large files survive a shaky connection. Download a file, or several as one zip. Download a web address straight to the server. |
 | **Archives** | Make zip, tar.gz and tar.xz; look inside and extract zip, tar, tar.gz, tar.xz, tar.bz2, tar.zst, gz, xz, bz2, 7z and rar. |
 | **Edit and preview** | A code editor with syntax highlighting for configuration files, scripts and source code; previews for images, video, audio, PDF and the end of large log files. |
+| **Where a file is used** | The details of a file say whether a website serves it (nginx, Apache or Caddy, with its address and the pages that link to it), whether it sits in an old release of a site, in a project and its git state, or is open in a program, so you can tell what is safe to delete. |
 | **Permissions** | Change permissions with checkboxes or a number like 755, separately for files and folders, and change owner and group, optionally for everything inside. |
 | **Activity and updates** | A record of everything done from Classeur, and updates installed from the interface, on request or automatically. |
 

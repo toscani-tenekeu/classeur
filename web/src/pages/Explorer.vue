@@ -483,29 +483,52 @@ const single = computed(() => (menuEntries.value.length === 1 ? menuEntries.valu
 const searchOpen = ref(false)
 const searching = ref(false)
 const results = ref<Search | null>(null)
-const query = ref({ text: '', ext: '', size: '0', age: '0', kind: 'any' })
+const query = ref({ text: '', ext: '', size: '0', customSize: '', age: '0', customAge: '', ageWay: 'older', kind: 'any' })
+let searchAbort: AbortController | null = null
+
+/** Minimum size in bytes, from the list or from your own number of MB. */
+function minimumBytes(): number {
+  if (query.value.size !== 'custom') return Number(query.value.size) * 1024 * 1024
+  const value = Number(String(query.value.customSize).replace(',', '.'))
+  return Number.isFinite(value) && value > 0 ? Math.round(value * 1024 * 1024) : 0
+}
 
 async function runSearch() {
+  searchAbort?.abort()
+  const abort = new AbortController()
+  searchAbort = abort
   searching.value = true
-  const [days, older] = query.value.age.startsWith('-') ? [query.value.age.slice(1), '1'] : [query.value.age, '0']
+  let [days, older] = query.value.age.startsWith('-') ? [query.value.age.slice(1), '1'] : [query.value.age, '0']
+  if (query.value.age === 'custom') {
+    days = String(Math.max(0, Math.floor(Number(query.value.customAge) || 0)))
+    older = query.value.ageWay === 'older' ? '1' : '0'
+  }
   const params = new URLSearchParams({
     path: path.value,
     q: query.value.text,
     ext: query.value.ext,
-    min: String(Number(query.value.size) * 1024 * 1024),
+    min: String(minimumBytes()),
     days,
     older,
     kind: query.value.kind,
   })
   try {
-    results.value = await api<Search>(`/fs/search?${params}`)
+    results.value = await api<Search>(`/fs/search?${params}`, { signal: abort.signal })
   } catch (failure) {
-    toast.error(messageOf(failure))
+    if (!abort.signal.aborted) toast.error(messageOf(failure))
   }
+  if (searchAbort === abort) searching.value = false
+}
+
+/** Stops the search; the server stops walking folders as soon as the request is gone. */
+function stopSearch() {
+  searchAbort?.abort()
+  searchAbort = null
   searching.value = false
 }
 
 function closeSearch() {
+  stopSearch()
   searchOpen.value = false
   results.value = null
 }
@@ -784,8 +807,13 @@ const SORT_COLUMNS = [
               <SelectItem value="1">1 MB or more</SelectItem>
               <SelectItem value="100">100 MB or more</SelectItem>
               <SelectItem value="1024">1 GB or more</SelectItem>
+              <SelectItem value="custom">Your own…</SelectItem>
             </SelectContent>
           </Select>
+        </Field>
+        <Field v-if="query.size === 'custom'" class="w-36">
+          <FieldLabel for="search-size-mb">MB or more</FieldLabel>
+          <Input id="search-size-mb" v-model="query.customSize" type="number" min="0" step="any" inputmode="decimal" placeholder="250" />
         </Field>
         <Field class="w-44">
           <FieldLabel for="search-age">Modified</FieldLabel>
@@ -798,9 +826,26 @@ const SORT_COLUMNS = [
               <SelectItem value="30">In the last 30 days</SelectItem>
               <SelectItem value="-90">More than 90 days ago</SelectItem>
               <SelectItem value="-365">More than a year ago</SelectItem>
+              <SelectItem value="custom">Your own…</SelectItem>
             </SelectContent>
           </Select>
         </Field>
+        <template v-if="query.age === 'custom'">
+          <Field class="w-40">
+            <FieldLabel for="search-age-way">Changed</FieldLabel>
+            <Select v-model="query.ageWay">
+              <SelectTrigger id="search-age-way"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="older">More than</SelectItem>
+                <SelectItem value="newer">Within the last</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field class="w-28">
+            <FieldLabel for="search-age-days">Days</FieldLabel>
+            <Input id="search-age-days" v-model="query.customAge" type="number" min="1" step="1" inputmode="numeric" placeholder="14" />
+          </Field>
+        </template>
         <Field class="w-32">
           <FieldLabel for="search-kind">Type</FieldLabel>
           <Select v-model="query.kind">
@@ -816,6 +861,7 @@ const SORT_COLUMNS = [
           <Spinner v-if="searching" data-icon="inline-start" />
           Search in {{ nameOf(path) || '/' }}
         </Button>
+        <Button v-if="searching" type="button" variant="outline" @click="stopSearch">Stop</Button>
         <Button type="button" variant="ghost" @click="closeSearch">Close</Button>
       </form>
     </CardContent>

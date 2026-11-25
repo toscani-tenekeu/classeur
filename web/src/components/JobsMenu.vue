@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ArrowDownUpIcon, CircleCheckIcon, CircleXIcon, XIcon } from '@lucide/vue'
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import JobDetails from '@/components/JobDetails.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
@@ -30,6 +31,15 @@ function amount(job: Job) {
   return job.total ? `${bytes(job.done)} of ${bytes(job.total)}` : bytes(job.done)
 }
 
+const menu = ref(false)
+const details = ref(false)
+const chosen = ref<string | null>(null)
+function show(job: Job) {
+  chosen.value = job.id
+  menu.value = false
+  details.value = true
+}
+
 function clear() {
   void clearFinished()
   clearUploads()
@@ -37,7 +47,7 @@ function clear() {
 </script>
 
 <template>
-  <Popover>
+  <Popover v-model:open="menu">
     <PopoverTrigger as-child>
       <Button variant="ghost" size="sm" aria-label="Transfers and tasks">
         <Spinner v-if="busy" />
@@ -77,16 +87,19 @@ function clear() {
               <Spinner v-if="job.state === 'running'" class="size-3.5" />
               <CircleCheckIcon v-else-if="job.state === 'done'" class="text-muted-foreground size-3.5" />
               <CircleXIcon v-else class="text-destructive size-3.5" />
-              <p class="min-w-0 flex-1 truncate text-sm" :title="job.title">{{ job.title }}</p>
-              <Button v-if="job.state === 'running'" variant="ghost" size="icon-xs" aria-label="Cancel" @click="cancel(job)">
+              <button type="button" class="min-w-0 flex-1 truncate text-left text-sm" :title="job.title" @click="show(job)">{{ job.title }}</button>
+              <Button v-if="job.state === 'running'" variant="ghost" size="icon-xs" :aria-label="`Cancel ${job.title}`" @click="cancel(job)">
                 <XIcon />
               </Button>
             </div>
             <Progress v-if="job.state === 'running' && progress(job) !== null" :model-value="progress(job)!" />
-            <p class="text-muted-foreground text-xs break-words">
-              <template v-if="job.state === 'running'">{{ amount(job) }}</template>
-              <template v-else>{{ job.message }}</template>
-            </p>
+            <div class="flex items-center gap-2">
+              <p class="text-muted-foreground min-w-0 flex-1 truncate text-xs">
+                <template v-if="job.state === 'running'">{{ amount(job) }}<template v-if="job.now"> · {{ job.now }}</template></template>
+                <template v-else>{{ job.message }}</template>
+              </p>
+              <Button variant="link" size="xs" class="h-auto shrink-0 p-0" @click="show(job)">Details</Button>
+            </div>
             <ul v-if="job.errors.length" class="text-destructive max-h-20 overflow-y-auto text-xs">
               <li v-for="problem in job.errors.slice(0, 5)" :key="problem" class="break-all">{{ problem }}</li>
               <li v-if="job.errors.length > 5">and {{ job.errors.length - 5 }} more</li>
@@ -102,4 +115,5 @@ function clear() {
       </ScrollArea>
     </PopoverContent>
   </Popover>
+  <JobDetails v-if="chosen" :id="chosen" :key="chosen" v-model:open="details" />
 </template>

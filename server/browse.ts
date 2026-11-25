@@ -2,7 +2,7 @@ import { chmod, lchown, lstat, open, readdir, stat } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { logActivity } from './db.ts'
 import { FsError, type Kind, modeString, mustWrite, path } from './fsops.ts'
-import { startJob } from './jobs.ts'
+import { Cancelled, scope, startJob } from './jobs.ts'
 import { accounts, names } from './users.ts'
 
 // ---- Search -----------------------------------------------------------------------------
@@ -45,7 +45,10 @@ export async function search(input: SearchInput) {
   let scanned = 0
   const queue = [root]
 
+  // A new search, a closed page or the Stop button aborts the request, and the walk stops with it.
+  const signal = scope.getStore()?.signal
   while (queue.length && !truncated) {
+    if (signal?.aborted) throw new Cancelled()
     if (Date.now() > deadline) {
       truncated = true
       break
