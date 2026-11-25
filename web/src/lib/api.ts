@@ -12,7 +12,7 @@ export function whenSignedOut(handler: () => void) {
   onSignedOut = handler
 }
 
-export async function api<T>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
+export async function api<T>(path: string, options: { method?: string; body?: unknown; signal?: AbortSignal } = {}): Promise<T> {
   let response: Response
   try {
     response = await fetch(`/api${path}`, {
@@ -20,8 +20,10 @@ export async function api<T>(path: string, options: { method?: string; body?: un
       headers: options.body === undefined ? undefined : { 'Content-Type': 'application/json' },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       credentials: 'same-origin',
+      signal: options.signal,
     })
-  } catch {
+  } catch (error) {
+    if (options.signal?.aborted) throw error
     throw new ApiError('The server is not responding.', 0)
   }
 

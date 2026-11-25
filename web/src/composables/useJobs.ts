@@ -38,7 +38,7 @@ async function poll() {
   } catch {
     // Tried again on the next tick.
   }
-  timer = setTimeout(poll, running.value.length ? 800 : 5000)
+  timer = setTimeout(poll, running.value.length ? 600 : 5000)
 }
 
 export function startPolling() {
@@ -52,9 +52,16 @@ export function track(job: Job) {
   void poll()
 }
 
+/** Shown as cancelled at once: the server has already stopped the work when it answers. */
 export async function cancel(job: Job) {
   try {
     await post(`/jobs/${job.id}/cancel`)
+    const local = jobs.value.find((item) => item.id === job.id)
+    if (local && local.state === 'running') {
+      local.state = 'cancelled'
+      local.message = 'Cancelled.'
+      local.finishedAt = Date.now()
+    }
   } catch (failure) {
     toast.error(messageOf(failure))
   }

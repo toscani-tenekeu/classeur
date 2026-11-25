@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { randomUUID } from 'node:crypto'
 
 export type JobState = 'running' | 'done' | 'failed' | 'cancelled'
@@ -11,6 +12,8 @@ export interface Job {
   done: number
   total: number
   unit: 'bytes' | 'items'
+  /** The file or step being worked on right now. */
+  now: string | null
   message: string | null
   errors: string[]
   startedAt: number
@@ -21,9 +24,16 @@ export interface Job {
 
 interface Control {
   job: Job
-  cancelled: boolean
+  controller: AbortController
   onCancel: (() => void)[]
 }
+
+/** The job, or request, the current code runs for. Programs started from it stop when it is cancelled. */
+export interface Scope {
+  signal: AbortSignal
+}
+
+export const scope = new AsyncLocalStorage<Scope>()
 
 const jobs = new Map<string, Control>()
 
@@ -35,14 +45,16 @@ export class Cancelled extends Error {
 
 export interface Handle {
   job: Job
+  signal: AbortSignal
   readonly cancelled: boolean
   onCancel(handler: () => void): void
   check(): void
 }
 
 /**
- * Runs long work in the background. The interface follows its progress and
- * can cancel it; the request that started it returns at once.
+ * Runs long work in the background. The interface follows its progress and can cancel it;
+ * the request that started it returns at once. Cancelling marks the job cancelled straight away
+ * and kills every program it started, so nobody waits for the work to notice.
  */
 export function startJob(
   init: Pick<Job, 'kind' | 'title' | 'unit' | 'folders'> & { total?: number },
@@ -56,37 +68,43 @@ export function startJob(
     done: 0,
     total: init.total ?? 0,
     unit: init.unit,
+    now: null,
     message: null,
     errors: [],
     startedAt: Date.now(),
     finishedAt: null,
     folders: init.folders,
   }
-  const control: Control = { job, cancelled: false, onCancel: [] }
+  const control: Control = { job, controller: new AbortController(), onCancel: [] }
   jobs.set(job.id, control)
+  const signal = control.controller.signal
 
   const handle: Handle = {
     job,
+    signal,
     get cancelled() {
-      return control.cancelled
+      return signal.aborted
     },
     onCancel: (handler) => control.onCancel.push(handler),
     check: () => {
-      if (control.cancelled) throw new Cancelled()
+      if (signal.aborted) throw new Cancelled()
     },
   }
 
-  void (async () => {
+  void scope.run({ signal }, async () => {
     try {
       const message = await work(handle)
-      job.state = control.cancelled ? 'cancelled' : job.errors.length ? 'failed' : 'done'
-      job.message = control.cancelled ? 'Cancelled.' : (message ?? null)
+      if (signal.aborted) return
+      job.state = job.errors.length ? 'failed' : 'done'
+      job.message = message ?? null
     } catch (error) {
-      job.state = control.cancelled || error instanceof Cancelled ? 'cancelled' : 'failed'
-      job.message = job.state === 'cancelled' ? 'Cancelled.' : error instanceof Error ? error.message : String(error)
+      if (signal.aborted) return
+      job.state = 'failed'
+      job.message = error instanceof Error ? error.message : String(error)
     }
+    job.now = null
     job.finishedAt = Date.now()
-  })()
+  })
 
   return job
 }
@@ -103,7 +121,12 @@ export function listJobs(): Job[] {
 export function cancelJob(id: string): boolean {
   const control = jobs.get(id)
   if (!control || control.job.state !== 'running') return false
-  control.cancelled = true
+  const { job } = control
+  job.state = 'cancelled'
+  job.message = 'Cancelled.'
+  job.now = null
+  job.finishedAt = Date.now()
+  control.controller.abort()
   for (const handler of control.onCancel) {
     try {
       handler()
@@ -112,6 +135,18 @@ export function cancelJob(id: string): boolean {
     }
   }
   return true
+}
+
+/** Long loops in the server's own code await this often: it lets other requests in and stops a cancelled job. */
+export function pacer(signal: AbortSignal) {
+  let last = Date.now()
+  return async () => {
+    if (signal.aborted) throw new Cancelled()
+    if (Date.now() - last < 25) return
+    await Bun.sleep(0)
+    last = Date.now()
+    if (signal.aborted) throw new Cancelled()
+  }
 }
 
 export function clearFinished() {

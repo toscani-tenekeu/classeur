@@ -4,7 +4,7 @@ import { logActivity } from './db.ts'
 import { FsError, mustWrite, path } from './fsops.ts'
 import { startJob } from './jobs.ts'
 import { freeName, sizeOf } from './transfer.ts'
-import { reason, run } from './sys.ts'
+import { reason, run, spawn } from './sys.ts'
 
 type Format = 'zip' | 'tar' | 'tar.gz' | 'tar.xz' | 'tar.bz2' | 'tar.zst' | 'gz' | 'xz' | 'bz2' | '7z' | 'rar'
 
@@ -97,6 +97,15 @@ async function adopt(target: string, parent: string) {
   await run(['chown', '-R', '-h', '--', `${owner.uid}:${owner.gid}`, target], { timeout: 300_000 })
 }
 
+/** The size of a folder being filled, for progress; nothing when the job is gone. */
+async function quickSize(dir: string): Promise<number> {
+  try {
+    return await sizeOf(dir)
+  } catch {
+    return 0
+  }
+}
+
 export async function startExtract(input: unknown, destinationInput: unknown) {
   const archive = path(input)
   const found = formatOf(basename(archive))
@@ -125,9 +134,9 @@ export async function startExtract(input: unknown, destinationInput: unknown) {
           command = ['tar', ...TAR_FLAG[found.format]!, '-xf', archive, '-C', work, '--no-same-owner']
         } else command = [sevenZip()!, 'x', '-y', `-o${work}`, '--', archive]
 
-        const proc = Bun.spawn(command, { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', env: { ...process.env, LC_ALL: 'C' } })
-        handle.onCancel(() => proc.kill())
-        const timer = setInterval(() => void sizeOf(work).then((size) => (handle.job.done = size)), 1500)
+        // Its own process group: cancelling kills the shell and the decompressor it started.
+        const proc = spawn(command, { timeout: 0 })
+        const timer = setInterval(() => void quickSize(work).then((size) => (handle.job.done = size)), 1500)
         const [stderr, code] = await Promise.all([new Response(proc.stderr).text(), proc.exited])
         clearInterval(timer)
         handle.check()
@@ -191,8 +200,7 @@ export async function startCompress(inputs: unknown[], nameInput: unknown, forma
   return startJob(
     { kind: 'compress', title: `Compressing ${names.length === 1 ? names[0] : `${names.length} items`}`, unit: 'bytes', total: 0, folders: [parent] },
     async (handle) => {
-      const proc = Bun.spawn(command, { cwd: parent, stdin: 'ignore', stdout: 'ignore', stderr: 'pipe', env: { ...process.env, LC_ALL: 'C' } })
-      handle.onCancel(() => proc.kill())
+      const proc = spawn(command, { cwd: parent, timeout: 0, stdout: 'ignore' })
       const timer = setInterval(() => void Bun.file(target).exists().then((there) => there && (handle.job.done = Bun.file(target).size)), 1000)
       const [stderr, code] = await Promise.all([new Response(proc.stderr).text(), proc.exited])
       clearInterval(timer)
@@ -224,10 +232,11 @@ export function zipStream(inputs: string[]): { body: ReadableStream; name: strin
   const label = names.length === 1 ? names[0]! : basename(parent) || 'files'
   const useZip = Boolean(Bun.which('zip'))
   const command = useZip ? ['zip', '-r', '-q', '-y', '-', '--', ...names] : ['tar', '-czf', '-', '--', ...names]
-  const proc = Bun.spawn(command, { cwd: parent, stdin: 'ignore', stdout: 'pipe', stderr: 'ignore' })
+  // Stops when the browser stops the download.
+  const proc = spawn(command, { cwd: parent, timeout: 0 })
   logActivity({ area: 'files', action: 'Downloaded as an archive', target: sources.length === 1 ? sources[0] : parent, detail: names.join('\n') })
   return {
-    body: proc.stdout,
+    body: proc.stdout as ReadableStream,
     name: `${label}.${useZip ? 'zip' : 'tar.gz'}`,
     type: useZip ? 'application/zip' : 'application/gzip',
   }

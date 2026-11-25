@@ -14,7 +14,8 @@ import {
   details, explain, folderSize, FsError, list, makeFile, makeFolder, makeLink, path as cleanPath, readText,
   renameItem, writeText,
 } from './fsops.ts'
-import { cancelJob, clearFinished, listJobs } from './jobs.ts'
+import { Cancelled, cancelJob, clearFinished, listJobs, scope } from './jobs.ts'
+import { checkUsage } from './usage.ts'
 import { purgeTrash, restoreItems, startDelete, startTransfer, startTrashPurge, trashItems, trashList } from './transfer.ts'
 import { applyUpdate, checkForUpdate, setAutoUpdate, startUpdateChecks, updateState } from './update.ts'
 import { cancelUpload, finishUpload, receiveChunk, startFetch, startUpload, startUploadCleanup } from './upload.ts'
@@ -197,6 +198,10 @@ async function api(req: Request, url: URL, address: string): Promise<Response> {
   if (route === 'GET /fs/list') return json(await list(query.get('path') ?? '/'))
   if (route === 'GET /fs/details') return json(await details(query.get('path')))
   if (route === 'GET /fs/size') return json(await folderSize(query.get('path')))
+  if (route === 'GET /fs/usage') {
+    const [use] = await checkUsage([cleanPath(query.get('path'))], req.signal)
+    return json(use)
+  }
   if (route === 'GET /fs/search') {
     const kind = query.get('kind')
     return json(
@@ -368,6 +373,17 @@ if (!existsSync(join(config.webDir, 'index.html'))) {
 startTrashPurge()
 startUploadCleanup()
 
+/**
+ * The visitor's address. Behind a reverse proxy on this machine every request comes from 127.0.0.1,
+ * so the address the proxy forwards is used, and only when the request really comes from the proxy.
+ */
+function clientAddress(req: Request, peer: string): string {
+  const local = peer === '127.0.0.1' || peer === '::1' || peer === '::ffff:127.0.0.1'
+  if (!local) return peer
+  const forwarded = req.headers.get('x-real-ip') ?? req.headers.get('x-forwarded-for')?.split(',').at(-1)
+  return forwarded?.trim() || peer
+}
+
 const server = Bun.serve({
   hostname: config.host,
   port: config.port,
@@ -379,11 +395,15 @@ const server = Bun.serve({
     const url = new URL(req.url)
     try {
       if (url.pathname.startsWith('/api/')) {
-        return await api(req, url, srv.requestIP(req)?.address ?? 'unknown')
+        const address = clientAddress(req, srv.requestIP(req)?.address ?? 'unknown')
+        // Programs run to answer a GET (search, folder sizes, zip downloads) stop when the browser stops waiting.
+        if (req.method === 'GET') return await scope.run({ signal: req.signal }, () => api(req, url, address))
+        return await api(req, url, address)
       }
       if (req.method !== 'GET' && req.method !== 'HEAD') return fail('Not found.', 404)
       return await asset(url)
     } catch (error) {
+      if (error instanceof Cancelled) return new Response(null, { status: 499 })
       if (error instanceof FsError) return fail(error.message, error.status)
       if ((error as NodeJS.ErrnoException)?.code) return fail(explain(error), 400)
       console.error(error)

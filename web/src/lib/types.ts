@@ -70,6 +70,7 @@ export interface Job {
   done: number
   total: number
   unit: 'bytes' | 'items'
+  now: string | null
   message: string | null
   errors: string[]
   startedAt: number
@@ -132,4 +133,19 @@ export interface UpdateState {
 export interface ActionResult {
   ok: boolean
   message: string
+}
+
+export interface FileUse {
+  path: string
+  use: 'used' | 'maybe' | 'unused'
+  label: string
+  reasons: string[]
+  site: { name: string; url: string } | null
+  release: { site: string; current: string; previous: boolean } | null
+  project: { root: string; git: 'tracked' | 'untracked' | 'ignored' | null } | null
+  references: { file: string; line: number }[]
+  referenceCount: number
+  requests: { count: number; last: number | null; since: number | null } | null
+  openBy: string[]
+  copyOf: string | null
 }
