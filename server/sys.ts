@@ -62,6 +62,9 @@ export async function run(cmd: string[], opts: SpawnOptions = {}): Promise<RunRe
       new Response(proc.stderr).text(),
       proc.exited,
     ])
+    // A program killed because its task or request was cancelled gives no answer at all, rather than
+    // empty output that a cache would keep as if it were true.
+    if (scope.getStore()?.signal.aborted) throw new Cancelled()
     return { ok: code === 0, code, stdout, stderr }
   } catch (error) {
     if (error instanceof Cancelled) throw error

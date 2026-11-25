@@ -1,6 +1,6 @@
 {
   "name": "classeur",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A web file manager for Linux servers.",
   "private": true,
   "license": "MIT",
